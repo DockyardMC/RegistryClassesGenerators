@@ -1,5 +1,6 @@
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -9,7 +10,7 @@ object BlocksGenerator {
     private const val OUTPUT_FILE_PATH = "./out/Blocks.kt"
 
     private val json = Json { ignoreUnknownKeys = true }
-    private val input = File(INPUT_FILE_PATH).readText()
+    val input = File(INPUT_FILE_PATH).readText()
 
     fun generate() {
         val blocks = parseBlocks(input)
@@ -18,7 +19,7 @@ object BlocksGenerator {
         println("Generated Blocks")
     }
 
-    private fun parseBlocks(jsonInput: String): List<Block> {
+    fun parseBlocks(jsonInput: String): List<Block> {
         return json.decodeFromString(jsonInput)
     }
 
@@ -28,7 +29,7 @@ object BlocksGenerator {
             appendImports()
             appendMetadata()
             appendLine("object Blocks {")
-            appendLine("    private val idToBlockMap by lazy {")
+            appendLine("    val idToBlockMap by lazy {")
             appendLine("        val json = Json { ignoreUnknownKeys = true }")
             appendLine("        val blocks = json.decodeFromString<List<Block>>(Resources.getText(\"./data/blocks.json\"))")
             appendLine("        blocks.associateBy { it.blockStateId }")
@@ -39,7 +40,6 @@ object BlocksGenerator {
             blocks.forEach {
                 appendLine("    val ${it.namespace.toUpperSnakeCase()} = getBlockById(${it.blockStateId})")
             }
-            appendLine("}")
             appendLine(serializeBlockDataClass())
         }
     }
@@ -50,6 +50,8 @@ object BlocksGenerator {
         appendLine("import kotlinx.serialization.json.Json")
         appendLine("import kotlinx.serialization.SerialName")
         appendLine("import kotlinx.serialization.Serializable")
+        appendLine("import kotlinx.serialization.Transient")
+        appendLine("import io.github.dockyardmc.blocks.BlockDataHelper")
     }
 
     private fun StringBuilder.appendMetadata() {
@@ -61,25 +63,38 @@ object BlocksGenerator {
 
     private fun serializeBlockDataClass(): String {
         return """
-            @Serializable
-            data class Block(
-                @SerialName("defaultState")
-                var blockStateId: Int,
-                @SerialName("displayName")
-                var name: String,
-                @SerialName("name")
-                var namespace: String,
-                @SerialName("transparent")
-                var isTransparent: Boolean,
-                @SerialName("emitLight")
-                var lightEmitted: Int,
-                @SerialName("filterLight")
-                var lightFiltered: Int,
-                @SerialName("minStateId")
-                var minState: Int,
-                @SerialName("maxStateId")
-                var maxState: Int
-            )
+            
+            init {
+                idToBlockMap.values.forEach {
+                    val clickable = BlockDataHelper.isClickable(it)
+                    it.isClickable = clickable
+                }
+            }
+        }    
+            
+            
+        @Serializable
+        data class Block(
+            @SerialName("defaultState")
+            var blockStateId: Int,
+            @SerialName("displayName")
+            var name: String,
+            @SerialName("name")
+            var namespace: String,
+            @SerialName("transparent")
+            var isTransparent: Boolean,
+            @SerialName("emitLight")
+            var lightEmitted: Int,
+            @SerialName("filterLight")
+            var lightFiltered: Int,
+            @SerialName("minStateId")
+            var minState: Int,
+            @SerialName("maxStateId")
+            var maxState: Int,
+            var boundingBox: String,
+            @Transient
+            var isClickable: Boolean = false
+        )
         """.trimIndent()
     }
 
@@ -110,6 +125,9 @@ object BlocksGenerator {
         @SerialName("minStateId")
         var minState: Int,
         @SerialName("maxStateId")
-        var maxState: Int
+        var maxState: Int,
+        var boundingBox: String,
+        @Transient
+        var isClickable: Boolean = false
     )
 }
